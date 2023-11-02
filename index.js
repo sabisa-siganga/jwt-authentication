@@ -2,9 +2,12 @@ const express = require("express");
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const bodyParser = require("body-parser");
+const jwt = require("jsonwebtoken");
 
 const app = express();
 const PORT = 8000;
+const SECRET_KEY = "sk3457";
+const DEFAULT_EXPIRES_IN = "10d";
 
 app.use(bodyParser.json());
 
@@ -56,31 +59,73 @@ app.post("/register-user", async (req, res) => {
     await newUser.save();
 
     res.status(201).json({
-      _id: newUser._id,
+      _id: newUser.id,
       username: newUser.username,
+      token: produceToken(newUser._id),
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ error: "Failed to register" });
   }
 });
 
 app.post("/login", async (req, res) => {
-  try {
-    const { username, password } = req.body;
+  const { username, password } = req.body;
 
-    const user = await User.findOne({ username });
+  console.log(username, password);
 
-    if (user && (await bcrypt.compare(password, user.password))) {
-      return res({
-        id,
-      });
-    }
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Internal server error" });
+  const user = await User.findOne({ username });
+  console.log(user);
+
+  if (user && (await bcrypt.compare(password, user.password))) {
+    res.json({
+      _id: user.id,
+      username: user.username,
+      token: produceToken(user._id),
+    });
+  } else {
+    res.status(400).json({ error: "Invalid password" });
   }
 });
+
+// produce token
+const produceToken = (userId) => {
+  return jwt.sign({ userId }, SECRET_KEY, {
+    expiresIn: DEFAULT_EXPIRES_IN,
+  });
+};
+
+const secureRoute = async (req, res, next) => {
+  let token;
+
+  if (
+    req.headers.authorization &&
+    req.headers.authorization.startsWith("Bearer")
+  ) {
+    try {
+      // get token from headers
+      token = req.headers.authorization.split(" ")[1];
+
+      // verify token
+
+      const decoded = jwt.verify(token, SECRET_KEY);
+
+      // get user from the token
+
+      req.user = await findById(decoded.userId).select("-password");
+
+      next();
+    } catch (err) {
+      console.log(err);
+      res.status(401).json({ error: "Not authorized" });
+    }
+
+    if (!token) {
+      res.status(401).json({ error: "Not authorized" });
+    }
+  }
+};
+
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
