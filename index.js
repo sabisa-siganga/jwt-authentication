@@ -1,131 +1,35 @@
+/**
+ * Creating an Express app that has a login route, checking the posted username and password and produces a JWT,
+ * also has a resouce route, checking JWT in the auth header and displays message with user name.
+ * additionally, it has admin_resource route, which checks JWT and displays a message if the token is verified and the token holder is an admin
+ *
+ *  More so, for task 2:  this app has been extended to create 3 users with different route access permissions have the following routes:
+ *  Mazvita - /a
+ *  Meagan - /a and /b
+ *  Kabelo - /b and /c
+ *
+ * Users only have access to access the above routes and the login endpoint
+ */
+
+// Import required dependencies for the Express application
 const express = require("express");
-const mongoose = require("mongoose");
-const bcrypt = require("bcryptjs");
-const bodyParser = require("body-parser");
-const jwt = require("jsonwebtoken");
+
+// import the router for defining routes
+const router = require("./routes/routes");
+
+// Load environment variables from a .env file
+require("dotenv").config();
 
 const app = express();
-const PORT = 8000;
-const SECRET_KEY = "sk3457";
-const DEFAULT_EXPIRES_IN = "10d";
 
-app.use(bodyParser.json());
+// Define the port where the server will listen, defaulting to 8000
+const PORT = process.env.PORT || 8000;
 
-// Connect to your MongoDB database (update the connection URL)
-mongoose.connect(
-  "mongodb+srv://lumisabiss_gmailcom:lumisabiss@hyperiondev123456.bnwjxx0.mongodb.net/user?retryWrites=true&w=majority"
-);
+app.use(express.json());
 
-// create user schema
-const userSchema = new mongoose.Schema({
-  username: { type: String, unique: true, required: true },
-  password: { type: String, required: true },
-});
-
-// Create a User model
-const User = mongoose.model("User", userSchema);
-
-// checking username and password and produce jwt
-app.post("/register-user", async (req, res) => {
-  const { username, password } = req.body;
-
-  if (!username || !password) {
-    return res
-      .status(400)
-      .json({ error: "Please enter username and password" });
-  }
-
-  try {
-    // Check if the user with the same username already exists
-    const userExists = await User.findOne({ username });
-
-    if (userExists) {
-      return res.status(400).json({
-        error:
-          "User with this username already exists. Please choose a different username",
-      });
-    }
-
-    // Create a salt and hash the password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    // Create a new user
-    const newUser = new User({
-      username,
-      password: hashedPassword,
-    });
-
-    await newUser.save();
-
-    res.status(201).json({
-      _id: newUser.id,
-      username: newUser.username,
-      token: produceToken(newUser._id),
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Failed to register" });
-  }
-});
-
-app.post("/login", async (req, res) => {
-  const { username, password } = req.body;
-
-  console.log(username, password);
-
-  const user = await User.findOne({ username });
-  console.log(user);
-
-  if (user && (await bcrypt.compare(password, user.password))) {
-    res.json({
-      _id: user.id,
-      username: user.username,
-      token: produceToken(user._id),
-    });
-  } else {
-    res.status(400).json({ error: "Invalid password" });
-  }
-});
-
-// produce token
-const produceToken = (userId) => {
-  return jwt.sign({ userId }, SECRET_KEY, {
-    expiresIn: DEFAULT_EXPIRES_IN,
-  });
-};
-
-const secureRoute = async (req, res, next) => {
-  let token;
-
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith("Bearer")
-  ) {
-    try {
-      // get token from headers
-      token = req.headers.authorization.split(" ")[1];
-
-      // verify token
-
-      const decoded = jwt.verify(token, SECRET_KEY);
-
-      // get user from the token
-
-      req.user = await findById(decoded.userId).select("-password");
-
-      next();
-    } catch (err) {
-      console.log(err);
-      res.status(401).json({ error: "Not authorized" });
-    }
-
-    if (!token) {
-      res.status(401).json({ error: "Not authorized" });
-    }
-  }
-};
+// handle routes
+app.use(router);
 
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+  console.log(`http://localhost:${PORT}`);
 });
